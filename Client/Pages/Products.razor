@@ -1,0 +1,123 @@
+﻿@using Services
+@using System.Globalization
+@using System.IO
+@using PPProject.Shared
+@inject IProductService prodService
+@inject NavigationManager NavigationManager
+@page "/products/{Category?}"
+
+<h3>Available Products</h3>
+<ul style="float:left">
+    @if (ShownProducts != null)
+        @foreach (Product product in ShownProducts)
+        {
+            <li class="@((product.Quantity!=0) ? "productBox":"productBox-Out-of-stock")">
+                <BSCard CardType="CardType.Card">
+                    @if (product.ProductPic != null)
+                    {
+
+                        <BSCard CardType="CardType.Image" VerticalAlignment="VerticalAlignment.Center" src="@product.GetImageData()" alt="Image" @onclick="@(()=> NavigationManager.NavigateTo($"/products/{product.ID}"))" />
+                    }
+                    else
+                    {
+                        <BSCard CardType="CardType.Image" VerticalAlignment="VerticalAlignment.Center" src="/res/images/NoImageAvailable.jpg" alt="Image" @onclick="@(()=> NavigationManager.NavigateTo($"/products/{product.ID}"))" />
+                    }
+
+                    <BSCard CardType="CardType.Body">
+                        <BSCard CardType="CardType.Title">@product.Name</BSCard>
+                        @if (product.Discount > 0 && !product.DiscountExpired())
+                        {
+                            <BSCard CardType="CardType.Subtitle">
+                                <strike>@product.GetFormattedPrice()$</strike>
+                                <b>@product.GetFormattedPriceWithDiscount()$</b>
+                            </BSCard>
+                        }
+                        else
+                        {
+                            <BSCard CardType="CardType.Subtitle">
+                                @product.GetFormattedPrice()$
+                            </BSCard>
+                        }
+                        <BSCard CardType="CardType.Text" Class="text-truncate">
+                            @product.Description
+                        </BSCard>
+                        <BSButton @onclick=@(() => NavigationManager.NavigateTo($"/products/{product.ID}"))
+                                  IsActive="@((product.Quantity==0))">Add to cart</BSButton>
+                    </BSCard>
+                </BSCard>
+            </li>
+        }
+        else
+        {
+            <div class="spinner-border" role="status">
+                <span class="sr-only">Loading...</span>
+            </div>
+        }
+</ul>
+
+@code {
+    //[Parameter]
+    //public string Category
+    //{
+    //    get
+    //    {
+    //        return _category;
+    //    }
+    //    set
+    //    {
+    //        if (value == null)
+    //            _category = string.Empty;
+    //        else _category = value;
+    //        OnCategoryChanged(_category);
+    //    }
+    //}
+    //private string _category=string.Empty;
+
+    [Parameter]
+    public string Category { get; set; }
+
+    // i dont know why they did it like this but you cant manipulate the parameter while its set.
+    // you have to use another prop to propogate changes
+    private string _category;
+    private string _Category
+    {
+        get => _category;
+        set
+        {
+            if (_category != value)
+            {
+                _category = value;
+                OnCategoryChanged(_category);
+            }
+        }
+    }
+
+    private IEnumerable<Product> ProductListing;
+    private IEnumerable<Product> ShownProducts;
+
+    protected override void OnParametersSet()
+    {
+        if (_Category != Category)
+        {
+            _Category = Category;
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        Category = Category ?? string.Empty;
+        ProductListing = await prodService.GetProductsAsync();
+
+        OnCategoryChanged(Category);
+
+    }
+
+    private void OnCategoryChanged(string category)
+    {
+        if (string.IsNullOrWhiteSpace(Category))
+            ShownProducts = ProductListing;
+        else
+            ShownProducts = ProductListing.Where(p => p.Category.Name == category).ToList();
+    }
+}
+

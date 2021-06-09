@@ -1,0 +1,188 @@
+﻿@page "/"
+@using Services
+@using System.Globalization
+@using PPProject.Shared
+@inject IProductService prodService
+@inject NavigationManager navManager
+@inject AuthenticationStateProvider AuthenticationState
+
+@implements IDisposable
+
+@using System.Threading;
+
+<div class="row">
+
+    @if (CarousalItemsCollections != null && CarousalItemsCollections.Count > 0)
+    {
+        @foreach (var tuple in CarousalItemsCollections)
+        {
+            @if (tuple.Value.carousel != null && tuple.Value.carousel.Count > 0)
+            {
+                <div id="carouselExampleIndicators" class="carousel slide col-sm-4" data-ride="carousel">
+                    <h5>@tuple.Key</h5>
+                    <ol class="carousel-indicators">
+                        @foreach (var item in tuple.Value.carousel)
+                        {
+                            <li data-target="#carouselExampleIndicators" data-slide-to="@item.ID"
+                                class="@(item.IsActive ? "active" : "")"></li>
+                        }
+                    </ol>
+
+                    <div class="carousel-inner border border-dark rounded" style="background-color: #eee;">
+                        @foreach (var item in tuple.Value.carousel)
+                        {
+                            <div class="carousel-item h-75 @(item.IsActive ? "active" : "")" style="max-height:500px">
+                                <a href="products/@item.Prod.ID">
+                                    <img src="@(item.Prod.GetImageData() ?? "/res/images/NoImageAvailable.jpg")" style="max-width:100%; height:contain; background-color: rgba(255,0,0,0.1);"
+                                         align="middle" />
+                                </a>
+                                <div class="carousel-caption d-none d-md-block">
+                                    <h5 class="text-light bg-dark">@item.Prod.Name</h5>
+                                    <div>
+                                        @if (item.Prod.Discount == 0 || item.Prod.DiscountExpired())
+                                        {
+                                            <p class="text-light bg-dark">$@item.Prod.GetFormattedPrice()</p>
+                                        }
+                                        else
+                                        {
+                                            <strike><p class="text-light bg-dark">@item.Prod.GetFormattedPrice().ToString()</p></strike>
+                                            <p class="text-light bg-dark">$@item.Prod.GetFormattedPriceWithDiscount()</p>
+                                        }
+                                    </div>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                </div>
+            }
+        }
+
+    }
+    else
+    {
+        <h5>Loading...</h5>
+        <div class="spinner-border" role="status">
+            <span class="sr-only">Loading...</span>
+        </div>
+    }
+</div>
+
+
+@code{
+    private const int MAX_NUMBER_OF_ITEMS = 5;
+
+    private IList<CarousalItem> NewAdditions = new List<CarousalItem>();
+    private IList<CarousalItem> TodaysDiscounts = new List<CarousalItem>();
+    private IList<CarousalItem> UserPreferences = new List<CarousalItem>();
+
+    private IDictionary<string, CarousalCollection> CarousalItemsCollections;
+
+    private readonly string[] headings = { "Newest additions", "Discounts for today", "Based on your preferences" };
+
+    int currentSlide = 0;
+
+    CancellationTokenSource cts;
+    CancellationToken ct;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var products = await prodService.GetProductsAsync();
+
+        var result = await AuthenticationState.GetAuthenticationStateAsync();
+
+        IEnumerable<Product> userPrefferences= new List<Product>();
+        var authenticated = result.User.Identity.IsAuthenticated;
+        //check first if user is logged in
+        if (authenticated)
+            userPrefferences = await prodService.GetProductsThatUserMightLike();
+
+        var newestProducts = products.OrderByDescending(p => p.CreatedAt).Take(MAX_NUMBER_OF_ITEMS).ToList();
+        var discountedProducts = products.Where(p => p.Discount > 0 && !p.DiscountExpired()).Take(MAX_NUMBER_OF_ITEMS).ToList();
+
+
+        CarousalItemsCollections = new Dictionary<string, CarousalCollection>()
+{
+            {headings[0], new CarousalCollection{ carousel=NewAdditions, currentPos=0 } },
+            {headings[1], new CarousalCollection{ carousel=TodaysDiscounts, currentPos=0 }  },
+            {headings[2], new CarousalCollection{ carousel=UserPreferences, currentPos=0 }  }
+        };
+
+        int i = 0;
+        foreach (var discProduct in discountedProducts)
+            TodaysDiscounts.Add(new CarousalItem { ID = i++, Prod = discProduct, IsActive = false });
+        i = 0;
+        foreach (var newAddition in newestProducts)
+            NewAdditions.Add(new CarousalItem { ID = i++, Prod = newAddition, IsActive = false });
+        i = 0;
+
+        if(authenticated)
+        foreach (var prefferedProduct in userPrefferences.ToList().Take(MAX_NUMBER_OF_ITEMS))
+            UserPreferences.Add(new CarousalItem { ID = i++, Prod = prefferedProduct, IsActive = false });
+
+
+        foreach (var collection in CarousalItemsCollections)
+        {
+            if (collection.Value.carousel.Any())
+                collection.Value.carousel.First().IsActive = true;
+        }
+
+        cts = new CancellationTokenSource();
+        ct = cts.Token;
+        await WalkThroughAsync(ct);
+    }
+
+
+    public async Task WalkThroughAsync(CancellationToken ct)
+    {
+        while (!ct.IsCancellationRequested)
+        {
+            await Task.Delay(3500, ct);
+            for (int i = 0; i < CarousalItemsCollections.Count; i++)
+            {
+                if (CarousalItemsCollections[headings[i]].carousel.Any())
+                    ChangeSlide(CarousalItemsCollections[headings[i]]);
+            }
+            await InvokeAsync(() => this.StateHasChanged());
+        }
+    }
+
+    private void ChangeSlide(CarousalCollection carousalCollection, bool toPrevious = false)
+    {
+
+        int currentSlide = Math.Abs(carousalCollection.currentPos % carousalCollection.carousel.Count);
+        if (!toPrevious)
+        {
+
+            carousalCollection.carousel[currentSlide].IsActive = false;
+            carousalCollection.currentPos++;
+            currentSlide = Math.Abs(carousalCollection.currentPos % carousalCollection.carousel.Count);
+            carousalCollection.carousel[currentSlide].IsActive = true;
+        }
+        else
+        {
+            carousalCollection.carousel[currentSlide].IsActive = false;
+            carousalCollection.currentPos--;
+            currentSlide = Math.Abs(carousalCollection.currentPos % carousalCollection.carousel.Count);
+            carousalCollection.carousel[currentSlide].IsActive = true;
+        }
+    }
+
+    public void Dispose()
+    {
+        cts.Dispose();
+    }
+
+    private class CarousalItem
+    {
+        public int ID { get; set; }
+        public Product Prod { get; set; }
+        public bool IsActive { get; set; }
+    }
+
+
+    private class CarousalCollection
+    {
+        public IList<CarousalItem> carousel { get; set; }
+        public int currentPos { get; set; }
+    }
+}

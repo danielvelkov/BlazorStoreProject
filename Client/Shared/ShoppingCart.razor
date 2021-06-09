@@ -1,0 +1,193 @@
+﻿@using PPProject.Shared
+@using Services
+
+@inject CartState State
+@inject ICartService CartService
+@inject IToastService ToastService
+@inject NavigationManager NavigationManager
+
+<h3>Your Shopping Cart</h3>
+@if (Cart == null || Cart.Items == null)
+{
+    <p>@LoadingText</p>
+    @if (spinning)
+    {
+        <div class="spinner-border"></div>
+    }
+}
+else if (!Cart.Items.Any())
+{
+    <h4>
+        No items added yet.
+        <a href="products">Continue shopping?</a>
+    </h4>
+}
+else
+{
+    <BSListGroup>
+        @foreach (var item in Cart.Items)
+        {
+            <BSListGroupItem>
+                <div class="row">
+
+                    <h4 class="col-sm" style="word-wrap:break-word">@item.Product.Name</h4>
+                    <div class="col-sm">
+                        <h5 class="product-price">
+                            Price:
+                            @if (item.Discount > 0 && !item.Product.DiscountExpired())
+                            {
+                                <strike>@item.Product.GetFormattedPrice()  </strike>
+                                <b>$@item.Product.GetFormattedPriceWithDiscount()</b>
+                            }
+                            else
+                            {
+                                <label> $@item.Product.GetFormattedPrice()</label>
+                            }
+                        </h5>
+                    </div>
+
+                    <div class="col-sm row">
+                        <h5 class="col-sm">Quantity:</h5>
+                        <h5 class="col-sm mr-3">x @item.Quantity</h5>
+                    </div>
+
+                    <h5 class="product-price mr-2">
+                        Total:
+                        @if (item.Discount > 0 && !item.Product.DiscountExpired())
+                        {
+                            <strike>@item.GetTotalFormatted() </strike>
+                            <b>$@item.GetTotalWithDiscountFormatted()</b>
+                        }
+                        else
+                        {
+
+                            <label>$@item.GetTotalFormatted()</label>
+                        }
+                    </h5>
+                    <BSButton Class="col-sm" Color="Color.Danger" @onclick="()=> RemoveItemAsync(item)">Remove </BSButton>
+
+
+                </div>
+            </BSListGroupItem>
+        }
+    </BSListGroup>
+    @if (Cart.Items.Count > 0)
+    {
+        //show the total cost and checkout and discard button
+
+        <br />
+        <div class="panel-footer float-right">
+            <div class="row text-center">
+                <div class="col-xs-9">
+                    <h4 class="text-right">
+                        Total:
+                        @if (Cart.GetTotalPrice() == Cart.GetDiscountedTotalPrice())
+                        {
+                            <strong>@Cart.GetTotalPrice().ToString("C")</strong>
+                        }
+                        else
+                        {
+                            <strong>
+                                <strike>@Cart.GetTotalPrice().ToString("C") </strike>
+                                <b> @Cart.GetDiscountedTotalPrice().ToString("C")</b>
+                            </strong>
+                        }
+                    </h4>
+                </div>
+                @* just realized m means margin and p means padding. the number after that is how much*@
+                <div class="col-xs-3 ml-2 mr-2">
+                    <BSButton @onclick="DiscardAsync" Color="Color.Warning">
+                        Discard Cart
+                    </BSButton>
+                    <BSButton @onclick="ProceedToCheckout" Color="Color.Success">
+                        Checkout
+                    </BSButton>
+                </div>
+            </div>
+        </div>
+    }
+}
+
+@code {
+
+    // TODO: limit amount of items added to cart. Imagine he adds the whole store.
+    //private static int MAX_NUM_OF_ITEMS { get; set; } = 10;
+
+    [Parameter]
+    public Cart Cart { get; set; } = new() { Items = new List<CartItem>() };
+
+    [Parameter]
+    public bool UserLoggedIn { get; set; } = false;
+
+    private string LoadingText;
+    private bool spinning;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        await Loading();
+        
+    }
+
+    private async Task RemoveItemAsync(CartItem item)
+    {
+        if (UserLoggedIn)
+        {
+            var message = await CartService.RemoveItemAsync(item.ID);
+            if (message.IsSuccessStatusCode)
+                ToastService.ShowSuccess("Item removed");
+            else
+            {
+                ToastService.ShowError("Something is wrong...Try agin");
+                return;
+            }
+        }
+        else
+        {
+            ToastService.ShowSuccess("Item removed");
+            State.RemoveItem(item);
+        }
+        Cart.Items.Remove(item);
+    }
+
+    private void ProceedToCheckout()
+    {
+        NavigationManager.NavigateTo("/checkout");
+    }
+
+    private async Task DiscardAsync()
+    {
+        HttpResponseMessage message;
+        if (UserLoggedIn)
+            message = await CartService.DiscardCartAsync(Cart);
+        else
+            message = await CartService.LogDiscardedCartAsync(Cart);
+
+        if (message.IsSuccessStatusCode)
+        {
+            ToastService.ShowInfo("Cart discarded. NOTE: shopping data is collected");
+
+            if (UserLoggedIn)
+                Cart = await CartService.GetCartAsync();
+            else
+            {
+                Cart = new() { Items = new List<CartItem>() };
+            }
+            State.EmptyCart();
+
+        }
+        else
+            ToastService.ShowError("Something went wrong.Try again...");
+    }
+
+    public async Task Loading()
+    {
+        LoadingText = "Loading";
+        spinning = true;
+        await Task.Delay(1);      // flushing changes. The trick!!
+        await Task.Delay(3000);
+        spinning = false;
+        LoadingText = "Maybe try refreshing the page";
+        await Task.Delay(1);
+
+    }
+}

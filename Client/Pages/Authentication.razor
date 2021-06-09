@@ -1,0 +1,46 @@
+﻿@page "/authentication/{action}"
+@inject CartState CartState
+@inject ICartService CartService
+@using PPProject.Shared
+@using Microsoft.AspNetCore.Components.WebAssembly.Authentication
+@using Services 
+
+<RemoteAuthenticatorViewCore Action="@Action"
+                             TAuthenticationState="CustomerAuthenticationState"
+                             AuthenticationState="RemoteAuthenticationState"
+                             OnLogInSucceeded="RestoreCartState"
+                             OnLogOutSucceeded="RestoreCartState" 
+                             />
+
+@code {
+    [Parameter]
+    public string Action { get; set; }
+
+    public CustomerAuthenticationState RemoteAuthenticationState { get; set; } =
+        new CustomerAuthenticationState();
+
+    protected override void OnInitialized()
+    {
+        if (RemoteAuthenticationActions.IsAction(RemoteAuthenticationActions.LogIn,
+            Action)
+            //||
+            //RemoteAuthenticationActions.IsAction(RemoteAuthenticationActions.LogOut,
+            //Action)
+            )
+        {
+            // when the user has  a cart and isnt logged in
+            // when he is redirected to login at checkout
+            // this preserves the state of its cart
+            if (CartState.Cart.Items.Count > 0)
+                RemoteAuthenticationState.Cart = CartState.Cart;
+        }
+    }
+    // i have no idea why its not working properly
+    private void RestoreCartState(CustomerAuthenticationState state)
+    {
+        if (state.Cart != null)
+        {
+            CartState.ReplaceCart(state.Cart);
+        }
+    }
+}

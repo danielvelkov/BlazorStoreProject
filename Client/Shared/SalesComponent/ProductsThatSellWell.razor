@@ -1,0 +1,60 @@
+﻿@using Services
+@inject ISalesService SalesService
+
+<h5>Items that sell well:</h5>
+<BSTabGroup>
+    <BSTabList id="product">
+        @foreach (var topSeller in topSellers)
+        {
+            <BSTab>
+                <BSTabLabel>@topSeller.Key </BSTabLabel>
+                <BSTabContent>
+                    <BSTable IsHoverable="true">
+                        <thead>
+                            <tr>
+                                <th scope="col">#</th>
+                                <th scope="col">Product</th>
+                                <th scope="col">Sales</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @if (topSeller.Value != null && topSeller.Value.Count != 0)
+                            {
+                                @foreach (var product in topSeller.Value.Take(5))
+                                {
+                                    string link = $"products/{product.Key}";
+                                    <tr>
+                                        <BS_th scope="row">
+                                            @product.Key
+                                        </BS_th>
+                                        <td><a href="@link"><BSLabel>@product.Value.Item1</BSLabel></a></td>
+                                        <td><BSLabel>@product.Value.Item2</BSLabel></td>
+
+                                    </tr>
+                                }
+                            }
+                        </tbody>
+                    </BSTable>
+                </BSTabContent>
+            </BSTab>
+        }
+        <BSTooltip Target="product" Placement="Placement.Top">Set a discount for product</BSTooltip>
+    </BSTabList>
+    <BSTabSelectedContent />
+</BSTabGroup>
+
+@code {
+    private IDictionary<int, Tuple<string, int>> ProductsThatSoldWellToday;
+    private IDictionary<int, Tuple<string, int>> ProductsThatSoldWellThisMonth;
+
+    private Dictionary<string, IDictionary<int, Tuple<string, int>>> topSellers = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        ProductsThatSoldWellToday = await SalesService.GetMostSoldToday();
+        ProductsThatSoldWellThisMonth = await SalesService.GetMostSoldThisMonth();
+        topSellers.Add("For today's date", ProductsThatSoldWellToday);
+        topSellers.Add($"During {DateTime.Now.ToString("MMMM")}", ProductsThatSoldWellThisMonth);
+
+    }
+}

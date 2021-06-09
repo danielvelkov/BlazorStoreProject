@@ -1,0 +1,124 @@
+﻿@page "/ShoppingSales"
+@attribute [Authorize(Roles = "Administrator")]
+
+@using Microsoft.AspNetCore.SignalR.Client
+@inject HubConnection HubConnection
+@implements IDisposable
+
+@using PPProject.Client.Shared.SalesComponent
+
+<h3>Sales</h3>
+<div class="row">
+
+    <div class="col-sm-6"><SalesPieChart @ref="SalesPieChart"></SalesPieChart></div>
+    <div class="col-sm-6"><ProductsThatSellWell></ProductsThatSellWell></div>
+</div>
+<div class="row">
+    <div class="col-sm-6"><SalesScale></SalesScale></div>
+
+    <div class="col-sm-6">
+        <h5>User activity</h5>
+        <BSListGroup ListGroupType="ListGroupType.Link">
+            @foreach (var log in Logs)
+            {
+                <BSListGroupItem ListGroupType="ListGroupType.Link" Href="@log.NavLink">
+                    <BSListGroupItemHeading>
+                        <h5 class="mb-1">@log.Header</h5>
+                        <small class="text-muted">@log.LogDate.ToString("d")</small>
+                    </BSListGroupItemHeading>
+                    <p class="mb-1">@log.Content</p>
+                </BSListGroupItem>
+            }
+        </BSListGroup>
+    </div>
+</div>
+
+@code{
+
+    private SalesPieChart SalesPieChart = new SalesPieChart();
+    private ProductsThatSellWell ProductsThatSellWell = new ProductsThatSellWell();
+    private SalesScale SalesScale = new SalesScale();
+
+
+
+    private readonly string[] LOG_HEADERS = { "Cart item add", "Cart item removed", "Cart discarded", "Order made" };
+    private class Log
+    {
+        public DateTime LogDate { get; set; }
+        public string Header { get; set; }
+        public string Content { get; set; }
+        public Log() { LogDate = DateTime.Now; }
+
+        public string NavLink { get; set; }
+    }
+
+    private List<Log> Logs = new();
+
+    protected override void OnInitialized()
+    {
+        HubConnection.On<Product>("ItemAddedToCart", p =>
+        {
+            Logs.Add(new Log
+            {
+                Header = LOG_HEADERS[0],
+                Content = $"Item with name {p.Name} added to a cart(Price ${p.GetFormattedPrice()})",
+                NavLink = $"products/{p.ID}"
+
+            });
+
+            StateHasChanged();
+        });
+
+        HubConnection.On<Product>("ItemRemovedFromCart", p =>
+        {
+            Logs.Add(new Log
+            {
+                Header = LOG_HEADERS[1],
+                Content = $"Item with name {p.Name} id {p.ID} removed from a cart(Price ${p.GetFormattedPrice()})",
+                NavLink = $"products/{p.ID}"
+            });
+
+            StateHasChanged();
+        });
+
+        HubConnection.On<Cart>("CartDiscarded", c =>
+        {
+            Logs.Add(new Log
+            {
+                Header = LOG_HEADERS[2],
+                Content = $"Cart discarded"
+            });
+            foreach (var item in c.Items)
+            {
+                Logs.Add(new Log
+                {
+                    Header = LOG_HEADERS[1],
+                    Content = $"Item with name {item.Product.Name} id {item.Product.ID} removed from a cart(Price ${item.Product.GetFormattedPrice()})",
+                    NavLink = $"products/{item.Product.ID}"
+                });
+
+            }
+            StateHasChanged();
+        });
+
+        HubConnection.On<Order>("OrderCreated", o =>
+        {
+            Logs.Add(new Log
+            {
+                Header = LOG_HEADERS[3],
+                Content = $"Order with id {o.ID} issued (Price ${o.Billing.ToString("C")})",
+                NavLink = $"orders/{o.ID}"
+            });
+
+            StateHasChanged();
+        });
+
+    }
+
+    public void Dispose()
+    {
+        HubConnection.Remove("ItemAddedToCart");
+    }
+}
+
+

@@ -1,0 +1,62 @@
+﻿@using Services
+@using ChartJs.Blazor.Common
+@using ChartJs.Blazor;
+@using ChartJs.Blazor.PieChart
+@using ChartJs.Blazor.Util
+
+@inject ISalesService SalesService
+
+<Chart  Config="salesPerCategoryConfig"></Chart>
+
+@code {
+    private PieConfig salesPerCategoryConfig;
+    private PieDataset<float> dataset;
+
+    private IDictionary<string, float> salePercentagesPerCategory;
+
+    protected override async Task OnInitializedAsync()
+    {
+        salesPerCategoryConfig = new PieConfig
+        {
+            Options = new PieOptions
+            {
+                Responsive = true,
+                Title = new OptionsTitle
+                {
+                    Display = true,
+                    Text = "Sales per category"
+                }
+            }
+        };
+
+        salePercentagesPerCategory = await SalesService.GetSalePercentageByCategoryAsync();
+
+        foreach (var pair in salePercentagesPerCategory)
+        {
+            salesPerCategoryConfig.Data.Labels.Add(pair.Key);
+        }
+
+        dataset = CreatePieDataSet(salePercentagesPerCategory);
+
+        salesPerCategoryConfig.Data.Datasets.Add(dataset);
+    }
+
+    private PieDataset<float> CreatePieDataSet(IDictionary<string,float> LabelsAndValues)
+    {
+        Random random = new Random();
+        return new PieDataset<float>(LabelsAndValues.Values)
+        {
+            BackgroundColor = GenerateRandomColors(LabelsAndValues.Keys.Count, random)
+        };
+    }
+
+    private string[] GenerateRandomColors(int n, Random rnd)
+    {
+        var colors = new string[n];
+        while (n-- > 1)
+            colors[n - 1] = ColorUtil.ColorHexString(Convert.ToByte(rnd.Next(256)),
+                Convert.ToByte(rnd.Next(256)), Convert.ToByte(rnd.Next(256)));
+        return colors;
+
+    }
+}

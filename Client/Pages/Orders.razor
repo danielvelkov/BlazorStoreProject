@@ -1,0 +1,39 @@
+﻿@page "/orders"
+@using Services
+@inject IOrderService OrderService
+@inject NavigationManager NavigationManager
+
+<h3>Issued Orders:</h3>
+@if (AllOrders == null || AllOrders.Count == 0)
+{
+    <text>Users haven't made orders so far</text>
+}
+else
+{
+    @foreach (var order in AllOrders)
+    {
+        <BSCard CardType="CardType.Card">
+            <BSCard CardType="CardType.Body">
+                <BSCard CardType="CardType.Title">Order #@order.ID:</BSCard>
+                <BSCard CardType="CardType.Subtitle">@order.Cart.ToString()</BSCard>
+                <BSCard CardType="CardType.Text">ADDRESS: @order.Address.ToString() <br />BILLING:@order.Billing.ToString("C")</BSCard>
+                <BSButton Color="Color.Info" @onclick="()=>ViewOrder(order.ID)">View details</BSButton>
+            </BSCard>
+        </BSCard>
+    }
+}
+
+@code {
+    private List<Order> AllOrders;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var temp = await OrderService.GetOrders();
+        AllOrders = temp.ToList();
+    }
+
+    private void ViewOrder(int orderId)
+    {
+        NavigationManager.NavigateTo($"myorders/{orderId}");
+    }
+}
