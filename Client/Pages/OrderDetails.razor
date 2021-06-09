@@ -47,11 +47,16 @@
                             <div class="col-3">
                                 <span id="price">
                                     @{
-                                        if (item.Discount > 0)
+                                        if (item.Discount > 0 && !item.Product.DiscountExpired())
                                         {
                                             <strike>@item.GetTotalFormatted() </strike>
+
+                                            @item.GetTotalWithDiscountFormatted();
                                         }
-                                        @item.GetTotalWithDiscountFormatted();
+                                        else
+                                        {
+                                            @item.GetTotalFormatted()
+                                        }
                                     }
                                 </span>
                             </div>
@@ -97,7 +102,7 @@
 
     protected override async Task OnInitializedAsync()
     {
-        var state=await AuthenticationState.GetAuthenticationStateAsync();
+        var state = await AuthenticationState.GetAuthenticationStateAsync();
         if (state.User.IsInRole("Administrator"))
             Order = await OrderService.GetOrderAsAdmin(OrderId);
         else
