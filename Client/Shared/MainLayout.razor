@@ -1,0 +1,29 @@
+﻿@using Blazored.Toast.Configuration 
+@inherits LayoutComponentBase
+
+<div class="page">
+    <div class="sidebar">
+        <img src="/res/images/Logo.PNG" class="w-auto"/>
+        <NavMenu />
+    </div>
+
+    <div class="main">
+        <div class="top-row px-4 auth">
+            <LoginDisplay />
+            @*<a href="https://docs.microsoft.com/aspnet/" target="_blank">About</a>*@
+        </div>
+
+        <div class="content px-4">
+            @Body
+        </div>
+    </div>
+</div>
+
+<Blazored.Toast.BlazoredToasts Position="ToastPosition.BottomCenter"
+                               Timeout="5"
+                               IconType="Blazored.Toast.IconType.FontAwesome"
+                               SuccessClass="success-toast-override"
+                               SuccessIcon="fa fa-thumbs-up"
+                               ErrorIcon="fa fa-bug">
+
+</Blazored.Toast.BlazoredToasts>

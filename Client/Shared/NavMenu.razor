@@ -1,0 +1,96 @@
+﻿@using Services
+@inject IProductService ProductService
+
+<div class="top-row pl-4 navbar navbar-dark">
+    <a class="navbar-brand" href="">PPProject</a>
+    <button class="navbar-toggler" @onclick="ToggleNavMenu">
+        <span class="navbar-toggler-icon"></span>
+    </button>
+</div>
+
+<div class="@NavMenuCssClass" @onclick="ToggleNavMenu">
+    <ul class="nav flex-column">
+        <li class="nav-item px-3">
+            @* anonymous users can see products and add them to their cart*@
+            <NavLink class="nav-link" href="" Match="NavLinkMatch.All">
+                <span class="oi oi-home" aria-hidden="true"></span> Home
+            </NavLink>
+
+            <NavLink class="nav-link" @onclick="()=>showCategories = !showCategories">
+                <span class="oi oi-list-rich" aria-hidden="true"></span> Products
+            </NavLink>
+            @if (showCategories)
+            {
+                <NavLink class="nav-link" href="products" Match="NavLinkMatch.All">
+                    <span class="oi oi-arrow-circle-right" aria-hidden="true"></span> Show all products
+                </NavLink>
+                @if (Categories != null)
+                {
+                    @foreach (var category in Categories)
+                    {
+                        var link = $"products/{category.Name}";
+                        <NavLink class="nav-link" href=@link Match="NavLinkMatch.All">
+                            <span class="oi oi-arrow-circle-right" aria-hidden="true"></span> @category.Name
+                        </NavLink>
+                    }
+                }
+            }
+
+            <AuthorizeView>
+
+                <NotAuthorized>
+                    <NavLink class="nav-link" href="cart" Match="NavLinkMatch.All">
+                        <span class="oi oi-cart" aria-hidden="true"></span> Shopping Cart
+                    </NavLink>
+                </NotAuthorized>
+
+                <Authorized>
+                    <NavLink class="nav-link" href="cart" Match="NavLinkMatch.All">
+                        <span class="oi oi-cart" aria-hidden="true"></span> My Cart
+                    </NavLink>
+                </Authorized>
+
+            </AuthorizeView>
+            @* registered customers are able to see their orders*@
+            <AuthorizeView Roles="Customer">
+                <NavLink class="nav-link" href="myorders" Match="NavLinkMatch.All">
+                    <span class="oi oi-dollar" aria-hidden="true"></span> My Orders
+                </NavLink>
+            </AuthorizeView>
+            @* admins can add a product,go through orders and see sales analytics*@
+        <AuthorizeView Roles="Administrator">
+            <NavLink class="nav-link" href="products/submit" Match="NavLinkMatch.All">
+                <span class="oi oi-plus" aria-hidden="true"></span> Add a product
+            </NavLink>
+
+            <NavLink class="nav-link" href="orders" Match="NavLinkMatch.All">
+                <span class="oi oi-dollar" aria-hidden="true"></span> See orders made
+            </NavLink>
+
+            <NavLink class="nav-link" href="ShoppingSales" Match="NavLinkMatch.All">
+                <span class="oi oi-spreadsheet" aria-hidden="true"></span> See sales analytics
+            </NavLink>
+        </AuthorizeView>
+
+        </li>
+    </ul>
+</div>
+
+@code {
+    private bool collapseNavMenu = true;
+    private bool showCategories = false;
+
+    private string NavMenuCssClass => collapseNavMenu ? "collapse" : null;
+
+    private IEnumerable<Category> Categories;
+
+    private void ToggleNavMenu()
+    {
+        collapseNavMenu = !collapseNavMenu;
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        Categories = await ProductService.GetCategoriesAsync();
+    }
+}

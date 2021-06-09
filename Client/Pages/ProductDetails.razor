@@ -1,0 +1,193 @@
+﻿@page "/products/{productId:int}"
+@using Services
+@using PPProject.Shared
+
+@inject IProductService prodService
+@inject CartState SessionState
+@inject NavigationManager NavigationManager
+@inject IToastService ToastService
+@inject ICartService CartService
+
+@if (product != null)
+{
+    <div class="container">
+        <div class="row">
+            @*Left side *@
+            <div class="col-md-4">
+                @if (product.ProductPic != null)
+                {
+                    <img class="border border-dark" src=@product.GetImageData() style="max-height:auto; width:100%">
+                }
+                else
+                {
+                    <img class="border border-dark" src="/res/images/NoImageAvailable.jpg" style="max-height:auto; width:100%">
+                }
+            </div>
+            @*Right side*@
+            <div class="col-md-6">
+                <div class="row">
+                    <h1>@product.Name</h1>
+                    <div class="col-md-12">
+                        <p class="description">
+                            @product.Description
+                        </p>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-md-12 bottom-rule">
+                        <label>Seller price:</label>
+                        @if (product.Discount > 0 && !product.DiscountExpired())
+                        {
+                            <h2 class="product-price"><strike>$@product.GetFormattedPrice()</strike></h2>
+                            <h2 class="product-price">$@product.GetFormattedPriceWithDiscount()</h2>
+                            <div>TODO add live timer till discount ends and add polling for updates every 1 min for quantity check</div>
+                        }
+                        else
+                        {
+                            <h2 class="product-price">$@product.GetFormattedPrice()</h2>
+                        }
+                    </div>
+                </div>
+                @if (product.Quantity > 0)
+                {
+                    <div class="row">
+                        <p class="text-success">In stock.</p>
+                    </div>
+                    <div class="row">
+                        <p class="text">Quantity:</p>
+                        <input type="number" @bind="buyingQuantity" min="1" max=@product.Quantity>
+                    </div>
+                }
+                <br>
+                <div class="row">
+                    @if (product.Quantity > 0)
+                    {
+                    <AuthorizeView Roles="Customer">
+                        <NotAuthorized>
+                            <button type="submit" class="btn btn-primary" @onclick="AddToTemporaryCart">Add to cart</button>
+                        </NotAuthorized>
+                        <Authorized>
+                            <button type="submit" class="btn btn-primary" @onclick="AddToCartAsync">Add to cart</button>
+                        </Authorized>
+                    </AuthorizeView>
+                    }
+
+                    @*Admin functionalities*@
+                    <AuthorizeView Roles="Administrator">
+                        <BSButtonGroup IsToggle="true">
+                            <BSButton class="btn-success" OnClick="() => Dialog.Show()">Add juicy discount</BSButton>
+                            <BSButton class="btn-warning">Edit details</BSButton>
+                            <BSButton class="btn-danger" @onclick="DeleteProductAsync">Delete</BSButton>
+                        </BSButtonGroup>
+                    </AuthorizeView>
+                </div>
+                <div class="row">
+                    <BSModal @ref="Dialog" IsCentered="true">
+                        <BSModalHeader>
+                            <h2>Set discount for product</h2>
+                            @discountedProduct.Name
+                        </BSModalHeader>
+                        <BSModalBody>
+                            <EditForm EditContext="EditContext">
+                                <DataAnnotationsValidator></DataAnnotationsValidator>
+                                <label for="discount">Discount:</label>
+                                <input name="discount" type="range" min="0" max="0.95" step="0.05"  @bind="discountedProduct.Discount" @bind:event="oninput" />
+                                <span class="size-label">
+                                    @(discountedProduct.Discount.ToString("P"))
+                                    <br />
+                                    <label style="color:green">New Price:@(discountedProduct.GetFormattedPriceWithDiscount())</label>
+                                </span>
+                                <br />
+                                <label>Expire date of discount:</label>
+                                <InputDate @bind-Value="@discountedProduct.Discount_Exp" />
+                                <ValidationSummary></ValidationSummary>
+                            </EditForm>
+                        </BSModalBody>
+                        <BSModalFooter>
+                            <BSButton Color="Color.Secondary" @onclick="Dialog.Hide">Cancel</BSButton>
+                            <BSButton Color="Color.Primary" @onclick="SetDiscountAsync">Set Discount ></BSButton>
+                        </BSModalFooter>
+                    </BSModal>
+                    </div>
+            </div>
+        </div>
+    </div>
+}
+else
+{
+    <p>Loading...</p>
+}
+@code{
+    [Parameter]
+    public int productId { get; set; }
+
+    private Product product;
+    private Product discountedProduct;
+
+    public EditContext EditContext;
+
+    public int buyingQuantity { get; set; } = 1;
+
+    public BSModal Dialog;
+
+    public bool ShowingDiscountDialog { get; set; } = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        product = await prodService.GetProductAsync(productId);
+        discountedProduct = new Product(product);
+        if (discountedProduct.DiscountExpired())
+        {
+            discountedProduct.Discount_Exp = DateTime.Today.AddDays(1);
+        }
+        EditContext = new EditContext(discountedProduct);
+    }
+
+    protected void AddToTemporaryCart()
+    {
+        try
+        {
+            SessionState.AddProductToTempCart(product, buyingQuantity);
+        }
+        catch(Exception e)
+        {
+            ToastService.ShowError(e.Message);
+            return;
+        }
+        NavigationManager.NavigateTo("/cart");
+    }
+
+    protected async Task AddToCartAsync()
+    {
+        var message = await CartService.AddItemAsync(productId, buyingQuantity);
+        if (message.IsSuccessStatusCode)
+            NavigationManager.NavigateTo("/cart");
+        else ToastService.ShowError("Item couldn't be added.");
+    }
+
+    protected async Task SetDiscountAsync()
+    {
+        var message= await prodService.UpdateProductAsync(discountedProduct);
+        if (message.IsSuccessStatusCode)
+        {
+            product.Discount = discountedProduct.Discount;
+            product.Discount_Exp = discountedProduct.Discount_Exp;
+            ToastService.ShowSuccess("Discount added.");
+            Dialog.Toggle();
+        }
+        else ToastService.ShowError("Discounts exp. date should be made later than today");
+    }
+
+    protected async Task DeleteProductAsync()
+    {
+        var result = await prodService.DeleteProductAsync(productId);
+        if (result.IsSuccessStatusCode)
+        {
+            ToastService.ShowSuccess("Product deleted going back to products page");
+            await Task.Delay(3000);
+            NavigationManager.NavigateTo("/products");
+        }
+        else ToastService.ShowError("Item couldn't be deleted.");
+    }
+
+}

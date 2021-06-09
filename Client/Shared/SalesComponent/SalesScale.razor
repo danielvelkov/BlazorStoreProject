@@ -1,0 +1,63 @@
+﻿@using ChartJs.Blazor.Common
+@using ChartJs.Blazor.Common.Enums
+@using ChartJs.Blazor.Util
+@using ChartJs.Blazor
+
+@using ChartJs.Blazor.BarChart
+@using System.Drawing
+@using System.Collections
+
+@using Services
+@inject ISalesService SalesService 
+
+<Chart Config="_config" @ref="_chart"></Chart>
+
+@code {
+    public static readonly string[] Months =
+        {
+            "January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"
+        };
+
+    private BarConfig _config;
+    private Chart _chart;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _config = new BarConfig
+        {
+            Options = new BarOptions
+            {
+                Responsive = true,
+                Legend = new Legend
+                {
+                    Position = Position.Top
+                },
+                Title = new OptionsTitle
+                {
+                    Display = true,
+                    Text = "Sales per month"
+                }
+            }
+        };
+
+        var salesPerMonth = await SalesService.GetSalesPerMonthAsync();
+
+        IDataset<int> dataset = new BarDataset<int>()
+        {
+            Label = $"Sales for {DateTime.Now.Year-1}-{DateTime.Now.Year}",
+            BackgroundColor = ColorUtil.FromDrawingColor(System.Drawing.Color.BlueViolet),
+            BorderColor = ColorUtil.FromDrawingColor(System.Drawing.Color.MediumPurple),
+            BorderWidth = 1
+        };
+
+        foreach (var sale in salesPerMonth)
+        {
+            dataset.Add(sale.Value);
+            _config.Data.Labels.Add(Months[sale.Key.Month-1]);
+        }
+        _config.Data.Datasets.Add(dataset);
+
+        await _chart.Update();
+    }
+
+}

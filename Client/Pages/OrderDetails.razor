@@ -1,0 +1,130 @@
+﻿@page "/myorders/{OrderId:int}"
+
+@attribute [Authorize]
+@using Services
+@inject IOrderService OrderService
+@inject NavigationManager NavigationManager
+@inject AuthenticationStateProvider AuthenticationState
+@inject IToastService ToastService
+@inject IJSRuntime JSRuntime
+
+<div class="main">
+    @if (invalidOrder)
+    {
+        <h2>Nope</h2>
+        <p>Sorry, this order could not be loaded.</p>
+    }
+    else if (Order == null)
+    {
+        <text>Loading...</text>
+    }
+    else
+    {
+        <BSCard Alignment="Alignment.Left" IsOutline="true" Class="col-sm-6">
+            <BSCard CardType="CardType.Header">
+                Order receipt
+            </BSCard>
+            <BSCard CardType="CardType.Body">
+                <BSCard CardType="CardType.Title">Details:</BSCard>
+                <div class="info">
+                    <div class="row">
+                        <div class="col-7"> <span id="heading"><b>DATE:</b></span><br> <span id="details">@Order.Issued</span> </div>
+                        <div class="col-5 pull-right"> <span id="heading"><b>ORDER No. :</b></span><br> <span id="details">#@Order.ID</span> </div>
+                    </div>
+                </div>
+                <div class="info">
+                    <div class="row">
+                        <div class="col-7"> <span id="heading"><b>SHIPPED TO:</b></span><br> <span id="details">@Order.Address</span> </div>
+                        <div class="col-5 pull-right"> <span id="heading"><b>ARRIVES IN:</b></span><br> <span id="details">10 years</span> </div>
+                    </div>
+                </div>
+                <hr />
+                <div class="pricing">
+                    @foreach (var item in Order.Cart.Items)
+                    {
+                        <div class="row">
+                            <div class="col-9"> <span id="name">@item.Product.Name</span> </div>
+                            <div class="col-3">
+                                <span id="price">
+                                    @{
+                                        if (item.Discount > 0)
+                                        {
+                                            <strike>@item.GetTotalFormatted() </strike>
+                                        }
+                                        @item.GetTotalWithDiscountFormatted();
+                                    }
+                                </span>
+                            </div>
+                        </div>
+                    }
+                </div>
+                <hr />
+                <div class="total">
+                    <div class="row">
+                        <div class="col-9"><b>TOTAL</b></div>
+                        <div class="col-3">
+                            <big>
+                                @{
+                                    if (Order.Cart.GetTotalPrice() != Order.Cart.GetDiscountedTotalPrice())
+                                    {
+                                        <strike>
+                                            @Order.Cart.GetFormattedTotalPrice
+                                        </strike>
+                                    }
+                                    @Order.Billing.ToString("C");
+                                }
+                            </big>
+                        </div>
+                    </div>
+                </div>
+            </BSCard>
+        </BSCard>
+        <AuthorizeView Roles="Administrator">
+            <BSButton>Print Order</BSButton>
+            <BSButton>Deliver </BSButton>
+            <BSButton>etc..</BSButton>
+        </AuthorizeView>
+        <BSButton ButtonType="ButtonType.Button" Color="Color.Danger" @onclick="DeleteAsync">Delete receipt</BSButton>
+    }
+</div>
+
+@code {
+    [Parameter]
+    public int OrderId { get; set; }
+
+    private Order Order;
+    bool invalidOrder = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var state=await AuthenticationState.GetAuthenticationStateAsync();
+        if (state.User.IsInRole("Administrator"))
+            Order = await OrderService.GetOrderAsAdmin(OrderId);
+        else
+        {
+            Order = await OrderService.GetOrder(OrderId);
+        }
+
+        if (Order == null)
+            invalidOrder = true;
+    }
+
+    private async Task DeleteAsync()
+    {
+        var confirmed = await JSRuntime.InvokeAsync<bool>("confirm", "Are you sure you wanna delete the receipt?");
+        if (confirmed)
+        {
+            var message =
+        await OrderService.DeleteOrder(OrderId);
+            if (message.IsSuccessStatusCode)
+            {
+                ToastService.ShowSuccess("Receipt deleted", "Going back to the orders page in 3 seconds.");
+                await Task.Delay(new TimeSpan(0, 0, 3));
+                NavigationManager.NavigateTo("myorders");
+            }
+            else
+                ToastService.ShowError("Something wrong happened while processing the request");
+        }
+    }
+}
+

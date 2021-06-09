@@ -1,0 +1,113 @@
+﻿
+@page "/products/submit"
+@attribute [Authorize(Roles = "Administrator")]
+@using Services
+@using System.Globalization
+@using PPProject.Shared
+@inject IProductService prodService
+@inject NavigationManager NavigationManager
+
+<div class="container">
+    <h1>Add a product</h1>
+    <p>Fill this form to create a product.</p>
+    <hr><EditForm Model="@product" OnValidSubmit="@AddProductAsync">
+        <DataAnnotationsValidator />
+        <ValidationSummary />
+        <div class="row">
+            <div class="col-md-6">
+                <p>
+                    <label>
+                        <b>Product Name:</b>
+                        <br>
+                        <InputText id="name" placeholder="Enter name" @bind-Value="product.Name" />
+                    </label>
+                </p>
+                <p>
+                    <label>
+                        <b>Category:</b>
+                        <br>
+                        <InputSelect id="category" @bind-Value="product.CategoryId">
+                            @if (categories != null)
+                            {
+                                <option value="-1" disabled selected>(Select)</option>
+                                @foreach (var category in categories)
+                                {
+                                    <option value="@category.ID">@category.Name</option>
+                                }
+                            }
+                        </InputSelect>
+                    </label>
+                </p>
+                <p>
+                    <label>
+                        <b>Price:</b>
+                        <br>
+                        <InputNumber id="price" placeholder="Enter price" @bind-Value="product.Price" />
+                    </label>
+                </p>
+                <p>
+                    <label>
+                        <b>Quantity:</b>
+                        <br>
+                        <InputNumber id="quantity" placeholder="Units available" @bind-Value="product.Quantity" />
+                    </label>
+                </p>
+                <p>
+                    <label>
+                        <b>Description:</b>
+                        <br>
+                        <InputTextArea id="description" @bind-Value="product.Description" />
+                    </label>
+                </p>
+                <p>
+                    <label>
+                        Add Image:
+                        <InputFile OnChange="@OnInputFileChange" />
+                    </label>
+                </p>
+                <button type="submit">Add Product</button>
+            </div>
+            @if (imageDataUrl != null)
+            {
+                <div class="col-md-4">
+                    <h4>Preview Image</h4>
+                            <img class="rounded m-1" src="@imageDataUrl" style="max-width:100%; height: auto;" allign="left"  />
+                </div>
+            }
+        </div>
+    </EditForm>
+</div>
+@code {
+    private Product product = new Product() { CreatedAt = DateTime.Now, Discount = 0, Discount_Exp = DateTime.Today.AddDays(1) };
+    private IEnumerable<Category> categories;
+    private string imageDataUrl;
+    private const int DESIRED_WIDTH = 800;
+    private const int DESIRED_HEIGHT = 800;
+
+    protected override async Task OnInitializedAsync() => categories = await prodService.GetCategoriesAsync();
+
+    private async Task OnInputFileChange(InputFileChangeEventArgs e)
+    {
+        var format = "image/png";
+
+        var imageFile = e.File;
+
+        var resizedImageFile = await imageFile.RequestImageFileAsync(format,
+            DESIRED_WIDTH, DESIRED_HEIGHT);
+        var buffer = new byte[resizedImageFile.Size];
+        await resizedImageFile.OpenReadStream().ReadAsync(buffer);
+        imageDataUrl =
+            $"data:{format};base64,{Convert.ToBase64String(buffer)}";
+
+        product.ProductPic = new FileImage { FileName = imageFile.Name, Content = buffer };
+
+    }
+
+    private async Task AddProductAsync()
+    {
+        product.Price = (float)Math.Round(product.Price, 2);
+        var response = await prodService.PostProductAsync(product);
+        int newProductId = await response.Content.ReadFromJsonAsync<int>();
+        NavigationManager.NavigateTo($"products/{newProductId}");
+    }
+}

@@ -1,0 +1,74 @@
+﻿@page "/cart"
+@using PPProject.Shared
+@using System.Linq
+@using Services
+
+@inject CartState State
+@inject AuthenticationStateProvider AuthenticationState
+@inject ICartService CartService
+@inject IJSRuntime JsRuntime
+@inject IToastService ToastService
+
+<AuthorizeView>
+    <Authorized>
+        <ShoppingCart Cart="Cart" UserLoggedIn="Authenticated">
+
+        </ShoppingCart>
+    </Authorized>
+    <NotAuthorized>
+        <ShoppingCart Cart="Cart" UserLoggedIn="Authenticated">
+
+        </ShoppingCart>
+
+    </NotAuthorized>
+</AuthorizeView>
+@code {
+    private Cart Cart = new() { Items = new List<CartItem>(10) };
+
+    private bool Authenticated { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        var result = await AuthenticationState.GetAuthenticationStateAsync();
+
+        Authenticated = result.User.Identity.IsAuthenticated;
+        //check first if user is logged in
+        if (Authenticated)
+        {
+            // if he is create a confirmation dialog component so he can accept the following
+            // "Add the items from the offline browsing session to your user cart" Y/N
+            Cart = await CartService.GetCartAsync();
+            if (Cart == null)
+                ToastService.ShowError("Somewthing went wrong. Try again later");
+
+
+            if (State.Cart.Items != null && State.Cart.Items.Any())
+            {
+                // TODO: this java alert is lame. add a razor component with minimized item list
+                bool confirmed = await JsRuntime.InvokeAsync<bool>("confirm",
+                    "Do you want to add the previously added items to the cart?");
+                if (confirmed)
+                {
+                    try
+                    {
+                        State.AddItemsToRealCart(Cart, CartService);
+                    }
+                    catch (Exception e)
+                    {
+                        ToastService.ShowError(e.Message);
+                    }
+                    finally
+                    {
+                        State.EmptyCart();
+                    }
+                }
+
+            }
+        }
+        else if (State.Cart != null)
+        {
+            Cart = State.Cart;
+
+        }
+    }
+}

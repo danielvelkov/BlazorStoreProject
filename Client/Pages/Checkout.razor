@@ -1,0 +1,131 @@
+﻿@page "/checkout"
+
+@using Services
+@using System.Net
+
+@attribute [Authorize]
+@inject CartState CartState
+@inject NavigationManager NavigationManager
+@inject ICartService CartService
+@inject IOrderService OrderService
+@inject IUserInfoService UserInfoService
+@inject IToastService ToastService
+
+
+<div>
+    <h4>Review order:</h4>
+    @if (Order != null && Order.Cart != null)
+    {
+        @foreach (var item in Order.Cart.Items)
+        {
+            <p>
+                <strong>
+                    @(item.Product.Name)
+                    x @item.Quantity
+                    (@item.GetTotalFormatted())
+                </strong>
+            </p>
+        }
+
+        <p>
+            <strong>
+                Total price:
+                @Order.Cart.GetTotalPrice().ToString("C")
+            </strong>
+        </p>
+    }
+</div>
+
+@if (Order != null){
+<EditForm Model="@Address" OnValidSubmit="@PlaceOrder">
+    <DataAnnotationsValidator />
+    <div>
+        <h4>Address information:</h4>
+        <AddressEditor Address="@Address" />
+    </div>
+
+    <BSButton ButtonType="ButtonType.Submit" IsDisabled="@isSubmitDisabled">
+        Place order
+    </BSButton>
+
+    <ValidationSummary />
+</EditForm>
+
+<p>Here should be some payment option forms, etc. </p>
+}
+
+
+@code {
+    private Order Order { get; set; }
+    private Address Address { get; set; } = new Address();
+
+    bool isSubmitDisabled = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        Order = new Order();
+        try
+        {
+            Address = await UserInfoService.GetUserAddressAsync();
+
+            if (Address != null)
+            {
+                Order.AddressId = Address.Id;
+                Order.Address = Address;
+            }
+        }
+        catch (HttpRequestException) // user still hasn't set his default address
+        {
+            isSubmitDisabled = true;
+            ToastService.ShowInfo("Set default address first.Changing to profile settings in 5 sec.");
+            await Task.Delay(5000);
+            NavigationManager.NavigateTo("Authentication/Profile");
+        }
+
+        var shoppingCart = await CartService.GetCartAsync();
+        if (shoppingCart.Items == null || shoppingCart.Items.Count == 0)
+        {
+            // something is wrong. User shouldnt be able to checkout with 0 items.
+            NavigationManager.NavigateTo("/");
+        }
+
+        Order.Cart = shoppingCart;
+        Order.CartId = shoppingCart.ID;
+
+        //billing and date of creation should be also handled on the server
+        Order.Billing = Order.Cart.GetDiscountedTotalPrice();
+        Order.Issued = DateTime.Now;
+    }
+
+    private async Task PlaceOrder()
+    {
+        isSubmitDisabled = true;
+
+        try
+        {
+            var orderId = await OrderService.PlaceOrder(Order);
+            ToastService.ShowSuccess("Order made");
+            NavigationManager.NavigateTo($"myorders/{orderId}");
+
+        }
+        catch (AccessTokenNotAvailableException ex)
+        {
+            ex.Redirect();
+
+        }
+        catch (HttpRequestException e)
+        {
+            if(e.StatusCode==HttpStatusCode.Conflict) // if the prices have changed the exact same moment as of ordering
+                ToastService.ShowError("Couldn't make order,please go back and refresh cart page",
+                    "Product listings have changed");
+            else if (e.StatusCode==HttpStatusCode.BadRequest) // something is wrong, idc tbh
+            {
+                ToastService.ShowError("ERROR");
+            }
+
+            isSubmitDisabled = false;
+            return;
+        }
+    }
+}
+
