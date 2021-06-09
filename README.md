@@ -1,4 +1,4 @@
-# ElectronicsStore-PP_Project-
+# BlazorStoreProject
 A simple Blazor hosted Wasm store with a server, providing sales analytics.
 
 # Uses
