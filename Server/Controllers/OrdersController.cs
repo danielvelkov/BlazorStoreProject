@@ -175,7 +175,7 @@ namespace PPProject.Server.Controllers
             float billing = 0;
             foreach (var item in order.Cart.Items)
             {
-                if (item.Discount > 0)
+                if (item.Discount > 0 && !item.Product.DiscountExpired())
                     billing += item.GetTotalWithDiscount();
                 else
                     billing += item.GetTotal();
