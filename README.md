@@ -15,7 +15,7 @@ A simple Blazor hosted Wasm store with a server, providing sales analytics.
 ![alt text](https://github.com/danielvelkov/BlazorStoreProject/blob/master/Preview/AddAProduct.gif?raw=true)
 
 - Make an order as user
-![alt text](https://github.com/danielvelkov/BlazorStoreProject/blob/master/Preview/MakingAnOrder.gif?raw=true)
+![alt text](https://github.com/danielvelkov/BlazorStoreProject/blob/master/Preview/IssueAnOrder.gif?raw=true)
 
 - Set a discount and view issued orders
 ![alt text](https://github.com/danielvelkov/BlazorStoreProject/blob/master/Preview/SetADiscountAndViewIssuedOrders.gif?raw=true)
